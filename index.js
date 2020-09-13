@@ -1,10 +1,11 @@
 const path = require('path');
 const express = require('express');
 const expressHandlebars = require('express-handlebars');
+const fortune = require('./lib/fortune');
 
 const app = express();
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3500;
 
 app.engine('.hbs', expressHandlebars({
     defaultLayout: 'main.hbs',
@@ -15,7 +16,7 @@ app.set('view engine', '.hbs');
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res) => res.render('home'));
-app.get('/about', (req, res) => res.render('about', {text: 'Hello Express'}));
+app.get('/about', (req, res) => res.render('about', {fortune: fortune.getFortune()}));
 
 
 app.use((req, res) => {
