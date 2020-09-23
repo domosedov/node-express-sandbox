@@ -1,1 +1,15 @@
 <h1>Welcome to home page</h1>
+<p>Questions?  Checkout out our
+<a href="/about" data-test-id="about">About Us</a> page!</p>
+
+{{#if flash}}
+  <div style="color: red; font-size: 2em">
+    {{{flash.message}}}
+  </div>
+{{/if}}
+
+<form action="/test-post" method="post">
+    <label for="text">Input valid email</label>
+    <input type="text" id="text" name="emial">
+    <button type="submit">Submit</button>
+</form>
