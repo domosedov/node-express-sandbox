@@ -6,12 +6,37 @@ const cookieParser = require('cookie-parser')
 const expressSession = require('express-session')
 const { credentials } = require('./config')
 const flashMiddleware = require('./lib/middleware/flash')
-
+const morgan = require('morgan')
+const fs = require('fs')
+const cluster = require('cluster')
 const handlers = require('./lib/handlers.js')
+
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION\n', err.stack)
+  // do any cleanup you need to do here...close
+  // database connections, etc.
+  process.exit(1)
+})
 
 const app = express()
 
-const PORT = process.env.PORT || 3500
+app.use((req, res, next) => {
+  if (cluster.isWorker) { console.log(`Worker ${cluster.worker.id} received request`) }
+  next()
+})
+
+switch (app.get('env')) {
+  case 'development':
+    app.use(morgan('dev'))
+    break
+  case 'production': {
+    const stream = fs.createWriteStream(path.resolve(__dirname, 'access.log'), {
+      flags: 'a'
+    })
+    app.use(morgan('combined', { stream }))
+    break
+  }
+}
 
 app.engine('.hbs', expressHandlebars({
   defaultLayout: 'main.hbs',
@@ -31,12 +56,19 @@ app.use(bodyParser.urlencoded({ extended: false }))
 app.use(bodyParser.json())
 app.use(flashMiddleware)
 
+app.get('/fail', (req, res) => {
+  throw new Error('Nope!')
+})
+
+app.get('/epic-fail', (req, res) => {
+  process.nextTick(() => { throw new Error('Kaboom!') })
+})
+
 app.get('/', handlers.home)
 app.get('/about', handlers.about)
 app.post('/test-post', (req, res) => {
-  const VALID_EMAIL_REGEX = new RegExp('^[a-zA-Z0-9.!#$%&\'*+\/=?^_`{|}~-]+@' +
-  '[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?' +
-  '(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$')
+  // eslint-disable-next-line no-useless-escape
+  const VALID_EMAIL_REGEX = new RegExp('^[a-zA-Z0-9.!#$%&\'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$')
   const email = req.body.email
 
   if (!VALID_EMAIL_REGEX.test(email)) {
@@ -55,9 +87,9 @@ app.get('/cookie', (req, res) => {
   res.cookie('signed_monster', 'nom nom', { signed: true })
   req.session.userName = 'Anonymous'
   req.session.color = 'blue'
-  const userName = req.session.userName
-  const colorScheme = req.session.colorScheme || 'dark'
-  const { cookies, signedCookies } = req
+  // const userName = req.session.userName
+  // const colorScheme = req.session.colorScheme || 'dark'
+  // const { cookies, signedCookies } = req
   res.json(req.session)
 })
 
@@ -77,11 +109,19 @@ app.use(handlers.notFound)
 
 app.use(handlers.serverError)
 
-if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Express started on http://localhost:${PORT}` +
-        '; press Ctrl-C to terminate.')
+function startServer (port) {
+  app.listen(port, function () {
+    console.log(`Express started in ${app.get('env')} ` +
+      `mode on http://localhost:${port}` +
+      '; press Ctrl-C to terminate.')
   })
+}
+
+if (require.main === module) {
+  // application run directly; start app server
+  startServer(process.env.PORT || 3000)
 } else {
-  module.exports = app
+  // application imported as a module via "require": export
+  // function to create server
+  module.exports = startServer
 }
