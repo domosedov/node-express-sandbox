@@ -2,5 +2,7 @@ node_modules/
 *~
 .DS_Store
 # .credentials.*
-.credentials.*
+.credentials.production.json
+.credentials.development.json
 access.log
+data/
