@@ -10,6 +10,7 @@ const morgan = require('morgan')
 const fs = require('fs')
 const cluster = require('cluster')
 const handlers = require('./lib/handlers.js')
+require('./db')
 
 process.on('uncaughtException', (err) => {
   console.error('UNCAUGHT EXCEPTION\n', err.stack)
@@ -18,6 +19,7 @@ process.on('uncaughtException', (err) => {
   process.exit(1)
 })
 
+// initial App
 const app = express()
 
 app.use((req, res, next) => {
@@ -25,6 +27,7 @@ app.use((req, res, next) => {
   next()
 })
 
+// Morgan logger
 switch (app.get('env')) {
   case 'development':
     app.use(morgan('dev'))
@@ -38,34 +41,42 @@ switch (app.get('env')) {
   }
 }
 
+// handlebars
 app.engine('.hbs', expressHandlebars({
   defaultLayout: 'main.hbs',
   extname: '.hbs'
 }))
-
 app.set('view engine', '.hbs')
+
+// cookies and session
 app.use(cookieParser(credentials.cookieSecret))
 app.use(expressSession({
   resave: false,
   saveUninitialized: false,
   secret: credentials.cookieSecret
 }))
+
+// public folder
 app.use(express.static(path.join(__dirname, 'public')))
 
+// body parser
 app.use(bodyParser.urlencoded({ extended: false }))
 app.use(bodyParser.json())
+
+// flash middleware
 app.use(flashMiddleware)
 
+// Routes
 app.get('/fail', (req, res) => {
   throw new Error('Nope!')
 })
-
 app.get('/epic-fail', (req, res) => {
   process.nextTick(() => { throw new Error('Kaboom!') })
 })
 
 app.get('/', handlers.home)
 app.get('/about', handlers.about)
+app.get('/vacations', handlers.listVacations)
 app.post('/test-post', (req, res) => {
   // eslint-disable-next-line no-useless-escape
   const VALID_EMAIL_REGEX = new RegExp('^[a-zA-Z0-9.!#$%&\'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$')
@@ -105,10 +116,12 @@ app.get('/json', (req, res) => {
   res.send(JSON.stringify({ hello: 1 }))
 })
 
+// handle 404 error
 app.use(handlers.notFound)
-
+// handle 500 error
 app.use(handlers.serverError)
 
+// start server
 function startServer (port) {
   app.listen(port, function () {
     console.log(`Express started in ${app.get('env')} ` +
